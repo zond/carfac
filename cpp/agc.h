@@ -29,27 +29,25 @@ struct AGCParams {
   AGCParams() {
     num_stages = 4;
     agc_stage_gain = 2.0;
-    time_constants.resize(num_stages);
-    agc1_scales.resize(num_stages);
-    agc2_scales.resize(num_stages);
-    agc1_scales[0] = 1.0;
-    agc2_scales[0] = 1.65;
-    time_constants[0] = 0.002;
-    for (int i = 1; i < num_stages; ++i) {
-      agc1_scales[i] = agc1_scales[i - 1] * sqrt(2.0);
-      agc2_scales[i] = agc2_scales[i - 1] * sqrt(2.0);
-      time_constants[i] = time_constants[i - 1] * 4.0;
-    }
+    agc1_scale0 = 1.0;
+    agc1_scale_mul = sqrt(2.0);
+    agc2_scale0 = 1.65;
+    agc2_scale_mul = sqrt(2);
+    time_constant0 = 0.002;
+    time_constant_mul = 4.0;
     decimation = {8, 2, 2, 2};
     agc_mix_coeff = 0.5;
   }
   int num_stages;
   FPType agc_stage_gain;
   FPType agc_mix_coeff;
-  std::vector<FPType> time_constants;
+  FPType agc1_scale0;
+  FPType agc1_scale_mul;
+  FPType agc2_scale0;
+  FPType agc2_scale_mul;
+  FPType time_constant0;
+  FPType time_constant_mul;
   std::vector<int> decimation;
-  std::vector<FPType> agc1_scales;
-  std::vector<FPType> agc2_scales;
 };
 
 // Automatic gain control filter coefficients, which are derived from a set of

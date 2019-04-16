@@ -36,7 +36,7 @@ void Ear::Redesign(int num_channels,
   CARFAC_ASSERT(car_coeffs.r1_coeffs.size() == num_channels &&
                 car_coeffs.a0_coeffs.size() == num_channels &&
                 car_coeffs.c0_coeffs.size() == num_channels &&
-                car_coeffs.h_coeffs.size() == num_channels &&
+                car_coeffs.h0_coeffs.size() == num_channels &&
                 car_coeffs.g0_coeffs.size() == num_channels &&
                 car_coeffs.zr_coeffs.size() == num_channels &&
                 "car_coeffs should be size num_channels.");
@@ -62,6 +62,8 @@ void Ear::InitCARState() {
   car_state_.zy_memory.setZero(num_channels_);
   car_state_.g_memory = car_coeffs_.g0_coeffs;
   car_state_.dg_memory.setZero(num_channels_);
+  car_state_.h_memory = car_coeffs_.h0_coeffs;
+  car_state_.dh_memory.setZero(num_channels_);
 }
 
 void Ear::InitIHCState() {
@@ -92,6 +94,8 @@ void Ear::InitAGCState() {
 void Ear::CARStep(FPType input) {
   // Interpolates g.
   car_state_.g_memory = car_state_.g_memory + car_state_.dg_memory;
+  // Interpolates h.
+  car_state_.h_memory = car_state_.h_memory + car_state_.dh_memory;
   // Calculates the AGC interpolation state.
   car_state_.zb_memory = car_state_.zb_memory + car_state_.dzb_memory;
   // This updates the nonlinear function of 'velocity' along with zA, which is
@@ -117,7 +121,7 @@ void Ear::CARStep(FPType input) {
       car_coeffs_.a0_coeffs * tmp1_ - car_coeffs_.c0_coeffs * tmp2_;
   car_state_.z2_memory =
       car_coeffs_.c0_coeffs * tmp1_ + car_coeffs_.a0_coeffs * tmp2_;
-  car_state_.zy_memory = car_coeffs_.h_coeffs * car_state_.z2_memory;
+  car_state_.zy_memory = car_state_.h_memory * car_state_.z2_memory;
   // This section ripples the input-output path, to avoid added delays...
   // It's the only part that doesn't get computed "in parallel".
   // Add inputs to z1_memory while looping, since the loop can't run
@@ -328,6 +332,7 @@ void Ear::CloseAGCLoop(bool open_loop) {
     // Zero the deltas to make the parameters not keep changing.
     car_state_.dzb_memory.setZero(num_channels_);
     car_state_.dg_memory.setZero(num_channels_);
+    car_state_.dh_memory.setZero(num_channels_);
   } else {
     // Scale factor to get the deltas to update in this many steps.
     FPType scaling = 1.0 / agc_decimation(0);
@@ -340,9 +345,11 @@ void Ear::CloseAGCLoop(bool open_loop) {
     auto r = car_coeffs_.r1_coeffs + car_coeffs_.zr_coeffs * undamping;
     g_values = (1 - 2 * r * car_coeffs_.a0_coeffs + (r * r)) /
                (1 - 2 * r * car_coeffs_.a0_coeffs +
-                car_coeffs_.h_coeffs * r * car_coeffs_.c0_coeffs + (r * r));
+                car_state_.h_memory * r * car_coeffs_.c0_coeffs + (r * r));
     // This updates the target stage gain.
     car_state_.dg_memory = (g_values - g_memory()) * scaling;
+    // This updates the dh_memory as a fraction of the dg_memory.
+    car_state_.dh_memory = car_coeffs_.dh_dg_ratio * car_state_.dg_memory;
   }
 }
 
