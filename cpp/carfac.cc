@@ -160,10 +160,11 @@ void CARFAC::DesignCARCoeffs(const CARParams& car_params,
   int num_channels = pole_freqs.size();
   car_coeffs->velocity_scale = car_params.velocity_scale;
   car_coeffs->v_offset = car_params.v_offset;
+  car_coeffs->dh_dg_ratio = car_params.dh_dg_ratio;
   car_coeffs->r1_coeffs.resize(num_channels);
   car_coeffs->a0_coeffs.resize(num_channels);
   car_coeffs->c0_coeffs.resize(num_channels);
-  car_coeffs->h_coeffs.resize(num_channels);
+  car_coeffs->h0_coeffs.resize(num_channels);
   car_coeffs->g0_coeffs.resize(num_channels);
   FPType f = car_params.zero_ratio * car_params.zero_ratio - 1.0;
   ArrayX theta = pole_freqs * ((2.0 * M_PI) / sample_rate);
@@ -188,13 +189,13 @@ void CARFAC::DesignCARCoeffs(const CARParams& car_params,
     min_zetas *= car_coeffs->zr_coeffs / theta;
   }
   car_coeffs->zr_coeffs *= max_zeta - min_zetas;
-  car_coeffs->h_coeffs = car_coeffs->c0_coeffs * f;
+  car_coeffs->h0_coeffs = car_coeffs->c0_coeffs * f;
   ArrayX relative_undamping = ArrayX::Ones(num_channels);
   ArrayX r =
       car_coeffs->r1_coeffs + (car_coeffs->zr_coeffs * relative_undamping);
   car_coeffs->g0_coeffs = (1.0 - (2.0 * r * car_coeffs->a0_coeffs) + (r*r)) /
       (1 - (2 * r * car_coeffs->a0_coeffs) +
-       (car_coeffs->h_coeffs * r * car_coeffs->c0_coeffs) + (r*r));
+       (car_coeffs->h0_coeffs * r * car_coeffs->c0_coeffs) + (r*r));
 }
 
 void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,

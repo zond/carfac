@@ -40,8 +40,11 @@ struct CARParams {
     erb_break_freq = 165.3;  // The Greenwood map's break frequency in Hertz.
     // Glassberg and Moore's high-cf ratio.
     erb_q = 1000 / (24.7 * 4.37);
+	// By default, h_memory doesn't change.
+	dh_dg_ratio = 0.0;
   }
 
+  FPType dh_dg_ratio; // Used to update dh_memory as a fraction of dg_memory.
   FPType velocity_scale;  // Used for the velocity nonlinearity.
   FPType v_offset;  // The offset gives us quadratic part.
   FPType min_zeta;  // The minimum damping factor in mid-freq channels.
@@ -58,11 +61,12 @@ struct CARParams {
 // CAR filter coefficients, which are derived from a set of CARParams.
 struct CARCoeffs {
   FPType velocity_scale;
+  FPType dh_dg_ratio;
   FPType v_offset;
   ArrayX r1_coeffs;
   ArrayX a0_coeffs;
   ArrayX c0_coeffs;
-  ArrayX h_coeffs;
+  ArrayX h0_coeffs;
   ArrayX g0_coeffs;
   ArrayX zr_coeffs;
 };
@@ -78,6 +82,8 @@ struct CARState {
   ArrayX zy_memory;
   ArrayX g_memory;
   ArrayX dg_memory;
+  ArrayX h_memory;
+  ArrayX dh_memory;
 };
 
 #endif  // CARFAC_CAR_H
