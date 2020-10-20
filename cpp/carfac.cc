@@ -259,15 +259,26 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,
 
 void CARFAC::DesignAGCCoeffs(const AGCParams& agc_params, FPType sample_rate,
                              vector<AGCCoeffs>* agc_coeffs) {
+  vector<FPType> time_constants;
+  vector<FPType> agc1_scales;
+  vector<FPType> agc2_scales;
+  agc1_scales.resize(agc_params.num_stages);
+  agc2_scales.resize(agc_params.num_stages);
+  time_constants.resize(agc_params.num_stages);
+  agc1_scales[0] = agc_params.agc1_scale0;
+  agc2_scales[0] = agc_params.agc2_scale0;
+  time_constants[0] = agc_params.time_constant0;
+  for (int i = 1; i < agc_params.num_stages; ++i) {
+    agc1_scales[i] = agc1_scales[i - 1] * agc_params.agc1_scale_mul;
+    agc2_scales[i] = agc2_scales[i - 1] * agc_params.agc2_scale_mul;
+    time_constants[i] = time_constants[i - 1] * agc_params.time_constant_mul;
+  }
   agc_coeffs->resize(agc_params.num_stages);
   FPType previous_stage_gain = 0.0;
   FPType decim = 1.0;
   for (int stage = 0; stage < agc_params.num_stages; ++stage) {
     AGCCoeffs& agc_coeff = agc_coeffs->at(stage);
     agc_coeff.agc_stage_gain = agc_params.agc_stage_gain;
-    vector<FPType> agc1_scales = agc_params.agc1_scales;
-    vector<FPType> agc2_scales = agc_params.agc2_scales;
-    vector<FPType> time_constants = agc_params.time_constants;
     FPType mix_coeff = agc_params.agc_mix_coeff;
     agc_coeff.decimation = agc_params.decimation[stage];
     FPType total_dc_gain = previous_stage_gain;

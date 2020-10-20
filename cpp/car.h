@@ -40,8 +40,8 @@ struct CARParams {
     erb_break_freq = 165.3;  // The Greenwood map's break frequency in Hertz.
     // Glassberg and Moore's high-cf ratio.
     erb_q = 1000 / (24.7 * 4.37);
-	// By default, h_memory doesn't change.
-	dh_dg_ratio = 0.0;
+    // By default, h_memory doesn't change.
+    dh_dg_ratio = 0.0;
   }
 
   FPType dh_dg_ratio; // Used to update dh_memory as a fraction of dg_memory.
