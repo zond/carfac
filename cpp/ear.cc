@@ -332,7 +332,7 @@ void Ear::CloseAGCLoop(bool open_loop) {
     // Zero the deltas to make the parameters not keep changing.
     car_state_.dzb_memory.setZero(num_channels_);
     car_state_.dg_memory.setZero(num_channels_);
-	car_state_.dh_memory.setZero(num_channels_);
+    car_state_.dh_memory.setZero(num_channels_);
   } else {
     // Scale factor to get the deltas to update in this many steps.
     FPType scaling = 1.0 / agc_decimation(0);
@@ -348,8 +348,8 @@ void Ear::CloseAGCLoop(bool open_loop) {
                 car_state_.h_memory * r * car_coeffs_.c0_coeffs + (r * r));
     // This updates the target stage gain.
     car_state_.dg_memory = (g_values - g_memory()) * scaling;
-	// This updates the dh_memory as a fraction of the dg_memory.
-	car_state_.dh_memory = car_coeffs_.dh_dg_ratio * car_state_.dg_memory;
+    // This updates the dh_memory as a fraction of the dg_memory.
+    car_state_.dh_memory = car_coeffs_.dh_dg_ratio * car_state_.dg_memory;
   }
 }
 
