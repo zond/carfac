@@ -348,13 +348,8 @@ void Ear::CloseAGCLoop(bool open_loop) {
                 car_state_.h_memory * r * car_coeffs_.c0_coeffs + (r * r));
     // This updates the target stage gain.
     car_state_.dg_memory = (g_values - g_memory()) * scaling;
-<<<<<<< HEAD
-	// This updates the dh_memory as a fraction of the dg_memory.
-	car_state_.dh_memory = car_coeffs_.dh_dg_ratio * car_state_.dg_memory;
-=======
     // This updates the dh_memory as a fraction of the dg_memory.
     car_state_.dh_memory = car_coeffs_.dh_dg_ratio * car_state_.dg_memory;
->>>>>>> 0901b1a957e5acbb9108f238ae99617adf185c72
   }
 }
 
