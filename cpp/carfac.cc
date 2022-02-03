@@ -24,6 +24,10 @@
 #include "carfac_util.h"
 #include "ear.h"
 
+#include "verify/log_sql.h"
+#include "verify/progressbar.hpp"
+#include <cstdio>
+
 using std::vector;
 
 CARFAC::CARFAC(int num_ears, FPType sample_rate, const CARParams& car_params,
@@ -40,6 +44,7 @@ CARFAC::~CARFAC() {
 void CARFAC::Redesign(int num_ears, FPType sample_rate,
                       const CARParams& car_params, const IHCParams& ihc_params,
                       const AGCParams& agc_params) {
+  log_params(car_params, ihc_params, agc_params);
   num_ears_ = num_ears;
   sample_rate_ = sample_rate;
   car_params_ = car_params;
@@ -77,6 +82,7 @@ void CARFAC::Redesign(int num_ears, FPType sample_rate,
           new Ear(num_channels_, car_coeffs, ihc_coeffs, agc_coeffs));
     }
   }
+  log_coeffs(ears_);
   accumulator_.setZero(num_channels_);
 }
 
@@ -99,13 +105,21 @@ void CARFAC::RunSegment(const ArrayXX& sound_data, bool open_loop,
   // A nested loop structure is used to iterate through the individual samples
   // for each ear (audio channel).
   bool agc_memory_updated = false;
+  progressbar bar(sound_data.cols());
+  log_start_tx();
   for (int32_t timepoint = 0; timepoint < sound_data.cols(); ++timepoint) {
+	log_sql_step = timepoint;
+	log_sql_ear = 0;
+	log_state(ears_);
+	bar.update();
     for (int audio_channel = 0; audio_channel < num_ears_; ++audio_channel) {
-      FPType input_sample = sound_data(audio_channel, timepoint);
+	  log_sql_ear = audio_channel;
+	  FPType input_sample = sound_data(audio_channel, timepoint);
 
       Ear* ear = ears_[audio_channel];
       // Apply the three stages of the model in sequence to the current sample.
       ear->CARStep(input_sample);
+	  log_vals_in_ary("RunSegment: car_out", ear->car_out());
       ear->IHCStep(ear->car_out());
       // The AGC work can be skipped if running open loop, since it will not
       // affect the output.  I had kept it running, in the Matlab version, as
@@ -114,6 +128,7 @@ void CARFAC::RunSegment(const ArrayXX& sound_data, bool open_loop,
         agc_memory_updated = ear->AGCStep(ear->ihc_out());
       }
     }
+	log_sql_ear = 0;
     output->AssignFromEars(ears_, timepoint);
     if (agc_memory_updated) {
       if (num_ears_ > 1) {
@@ -122,6 +137,8 @@ void CARFAC::RunSegment(const ArrayXX& sound_data, bool open_loop,
       CloseAGCLoop(open_loop);
     }
   }
+  log_end_tx();
+  printf("\n");
 }
 
 void CARFAC::CrossCouple() {
@@ -131,17 +148,20 @@ void CARFAC::CrossCouple() {
     } else {
       FPType mix_coeff = ears_[0]->agc_mix_coeff(stage);
       if (mix_coeff > 0) {
+		log_vals_in_ary(fmt::format("CrossCouple: stage {}: agc_memory(0)", stage), ears_[0]->agc_state_[stage].agc_memory);
         accumulator_.setZero(num_channels_);
         for (Ear* ear : ears_) {
           accumulator_ += ear->agc_memory(stage);
         }
         accumulator_ *= FPType(1.0 / num_ears_);  // Ears' mean AGC state.
+		log_vals_in_ary(fmt::format("CrossCouple: stage {}: accumulator", stage), accumulator_);
         // Mix the mean into all.
         for (Ear* ear : ears_) {
           ear->CrossCouple(accumulator_, stage);
         }
       }
     }
+	log_vals_in_ary(fmt::format("CrossCouple: stage {}: agc_memory", stage), ears_[0]->agc_state_[stage].agc_memory);
   }
 }
 
@@ -208,16 +228,24 @@ void CARFAC::DesignIHCCoeffs(const IHCParams& ihc_params, FPType sample_rate,
     x(0) = 10.0;
     CARFACDetect(&x);
     conduct_at_10 = x(0);
+	log_val("DesignIHCCoeffs: conduct_at_10", conduct_at_10);
     x(0) = 0.0;
     CARFACDetect(&x);
     conduct_at_0 = x(0);
+	log_val("DesignIHCCoeffs: conduct_at_0", conduct_at_0);
     if (ihc_params.one_capacitor) {
       FPType ro = 1 / conduct_at_10;
+	  log_val("DesignIHCCoeffs: ro", ro);
       FPType c = ihc_params.tau1_out / ro;
+	  log_val("DesignIHCCoeffs: c", c);
       FPType ri = ihc_params.tau1_in / c;
+	  log_val("DesignIHCCoeffs: ri", ri);
       FPType saturation_output = 1 / ((2 * ro) + ri);
+	  log_val("DesignIHCCoeffs: saturation_output", saturation_output);
       FPType r0 = 1 / conduct_at_0;
+	  log_val("DesignIHCCoeffs: r0", r0);
       FPType current = 1 / (ri + r0);
+	  log_val("DesignIHCCoeffs: current", current);
       ihc_coeffs->cap1_voltage = 1 - (current * ri);
       ihc_coeffs->just_half_wave_rectify = false;
       ihc_coeffs->lpf_coeff =

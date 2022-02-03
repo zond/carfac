@@ -10,3 +10,9 @@
 *.png
 # VScode files
 cpp/.vs/*
+.*.swp
+*.*.gch
+*.o
+cpp/verify/verify
+cpp/verify/verify.db
+*.db-journal

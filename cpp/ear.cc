@@ -18,7 +18,10 @@
 
 #include "ear.h"
 
+#include <iostream>
+
 #include "carfac_util.h"
+#include "verify/log_sql.h"
 
 Ear::Ear(int num_channels,
          const CARCoeffs& car_coeffs,
@@ -107,17 +110,24 @@ void Ear::CARStep(FPType input) {
        (1 + ((car_coeffs_.velocity_scale *
               (car_state_.z2_memory - car_state_.za_memory)) +  // velocities.
              car_coeffs_.v_offset).square()).inverse());
+  log_vals_in_ary("CARStep: r", r);
   car_state_.za_memory = car_state_.z2_memory;
   // Here we reduce the CAR state by r and then rotate with the fixed cos/sin
   // coeffs, using both temp arrays, ending the scope of tmp1_ as r.
   tmp2_ = r * car_state_.z2_memory;
+  log_vals_in_ary("CARStep: tmp2_", tmp2_);
   // But first stop using tmp1_ for r, and use it for r * z1 instead.
   tmp1_ = r * car_state_.z1_memory;
+  log_vals_in_ary("CARStep: tmp1_", tmp1_);
   car_state_.z1_memory =  // This still needs stage inputs to be added.
       car_coeffs_.a0_coeffs * tmp1_ - car_coeffs_.c0_coeffs * tmp2_;
+  log_vals_in_ary("CARStep: z1_memory", car_state_.z1_memory);
   car_state_.z2_memory =
       car_coeffs_.c0_coeffs * tmp1_ + car_coeffs_.a0_coeffs * tmp2_;
+  log_vals_in_ary("CARStep: z2_memory", car_state_.z2_memory);
   car_state_.zy_memory = car_coeffs_.h_coeffs * car_state_.z2_memory;
+  log_vals_in_ary("CARStep: zy_memory", car_state_.zy_memory);
+  log_vals_in_ary("CARStep: g_memory", car_state_.g_memory);
   // This section ripples the input-output path, to avoid added delays...
   // It's the only part that doesn't get computed "in parallel".
   // Add inputs to z1_memory while looping, since the loop can't run
@@ -128,6 +138,7 @@ void Ear::CARStep(FPType input) {
     // This performs the ripple, and saves the final channel outputs in zy.
     in_out = car_state_.g_memory(channel) *
         (in_out + car_state_.zy_memory(channel));
+	log_val(fmt::format("CARStep: chan {}: in_out", channel), in_out);
     car_state_.zy_memory(channel) = in_out;
   }
 }
@@ -136,6 +147,8 @@ void Ear::CARStep(FPType input) {
 // including the detection nonlinearity and either one or two capacitor state
 // variables.
 void Ear::IHCStep(const ArrayX& car_out) {
+  log_vals_in_ary("IHCStep: car_out", car_out);
+  log_vals_in_ary("IHCStep: ac_coupler", ihc_state_.ac_coupler);
   ArrayX& ac_diff = ihc_state_.ihc_out;
   ac_diff = car_out - ihc_state_.ac_coupler;
   ihc_state_.ac_coupler = ihc_state_.ac_coupler +
@@ -145,12 +158,18 @@ void Ear::IHCStep(const ArrayX& car_out) {
         .min(ArrayX::Constant(num_channels_, 2));
   } else {
     CARFACDetect(&ac_diff);
+	log_vals_in_ary("IHCStep: ac_diff", ac_diff);
     ArrayX& conductance = ac_diff;
     if (ihc_coeffs_.one_capacitor) {
       ihc_state_.ihc_out = conductance * ihc_state_.cap1_voltage;
+	  log_vals_in_ary("IHCStep: ihc_out(1)", ihc_state_.ihc_out);
+	  log_vals_in_ary("IHCStep: cap1_voltage(1)", ihc_state_.cap1_voltage);
+	  log_val("IHCStep: out1_rate(1)", ihc_coeffs_.out1_rate);
+	  log_val("IHCStep: in1_rate(1)", ihc_coeffs_.in1_rate);
       ihc_state_.cap1_voltage = ihc_state_.cap1_voltage -
           (ihc_state_.ihc_out * ihc_coeffs_.out1_rate) +
           ((1 - ihc_state_.cap1_voltage) * ihc_coeffs_.in1_rate);
+	  log_vals_in_ary("IHCStep: cap1_voltage(2)", ihc_state_.cap1_voltage);
     } else {
       ihc_state_.ihc_out = conductance * ihc_state_.cap2_voltage;
       ihc_state_.cap1_voltage = ihc_state_.cap1_voltage -
@@ -163,16 +182,23 @@ void Ear::IHCStep(const ArrayX& car_out) {
            * ihc_coeffs_.in2_rate);
     }
     // Smooth the output twice using an LPF.
+	log_vals_in_ary("IHCStep: lpf1_state(1)", ihc_state_.lpf1_state);
+	log_val("IHCStep: lpf_coeff", ihc_coeffs_.lpf_coeff);
+	log_vals_in_ary("IHCStep: ihc_out(2)", ihc_state_.ihc_out);
+	log_val("IHCStep: output_gain", ihc_coeffs_.output_gain);
     ihc_state_.lpf1_state += ihc_coeffs_.lpf_coeff *
         (ihc_state_.ihc_out * ihc_coeffs_.output_gain -
          ihc_state_.lpf1_state);
+	log_vals_in_ary("IHCStep: lpf1_state(2)", ihc_state_.lpf1_state);
     ihc_state_.lpf2_state += ihc_coeffs_.lpf_coeff *
         (ihc_state_.lpf1_state - ihc_state_.lpf2_state);
+	log_vals_in_ary("IHCStep: lpf2_state", ihc_state_.lpf2_state);
     ihc_state_.ihc_out = ihc_state_.lpf2_state - ihc_coeffs_.rest_output;
   }
 }
 
 bool Ear::AGCStep(const ArrayX& ihc_out) {
+  log_vals_in_ary("AGCStep: ihc_out", ihc_out);
   bool updated = false;
   const int num_stages = agc_coeffs_.size();
   if (num_stages > 0) {  // AGC is enabled.
@@ -186,11 +212,13 @@ bool Ear::AGCStep(const ArrayX& ihc_out) {
 }
 
 bool Ear::AGCRecurse(int stage, ArrayX* agc_in_out) {
+  log_vals_in_ary(fmt::format("AGCRecurse: stage {}: agc_in_out", stage), *agc_in_out);
   bool updated = false;
   const AGCCoeffs& agc_coeffs = agc_coeffs_[stage];
   AGCState& agc_state = agc_state_[stage];
   // Unconditionally accumulate input for this stage from the previous stage:
   agc_state.input_accum += *agc_in_out;
+  log_vals_in_ary(fmt::format("AGCRecurse: stage {}: input_accum(1)", stage), agc_state.input_accum);
   // This is the decim factor for this stage, relative to input or prev. stage:
   int decim = agc_coeffs.decimation;
   // Increment the decimation phase of this stage (do work on phase 0 only):
@@ -206,6 +234,7 @@ bool Ear::AGCRecurse(int stage, ArrayX* agc_in_out) {
       // as temp agc_in_out space there until we clear it afterward to start
       // over using it again as input accumulator for this stage.
       agc_state.input_accum = *agc_in_out;
+	  log_vals_in_ary(fmt::format("AGCRecurse: stage {}: input_accum(2)", stage), agc_state.input_accum);
       AGCRecurse(stage + 1, &agc_state.input_accum);
       // Finally add next stage's output to this stage input, whether
       // the next stage updated or not (ignoring bool result of AGCRecurse).
@@ -214,12 +243,15 @@ bool Ear::AGCRecurse(int stage, ArrayX* agc_in_out) {
     }
     // This resets the accumulator.
     agc_state.input_accum = ArrayX::Zero(num_channels_);
+	log_vals_in_ary(fmt::format("AGCRecurse: stage {}: input_accum(3)", stage), agc_state.input_accum);
     // This performs a first-order recursive smoothing filter update, in time,
     // at this stage's update rate.
     agc_state.agc_memory += agc_coeffs.agc_epsilon *
         (*agc_in_out - agc_state.agc_memory);
+	log_vals_in_ary(fmt::format("AGCRecurse: stage {}: agc_memory", stage), agc_state.agc_memory);
     // Smooth the agc_memory across space or frequency.
     AGCSpatialSmooth(agc_coeffs, &agc_state.agc_memory);
+	log_vals_in_ary(fmt::format("AGCRecurse: stage {}: agc_memory(2)", stage), agc_state.agc_memory);
     updated = true;
   }
   return updated;
