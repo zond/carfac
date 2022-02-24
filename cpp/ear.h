@@ -94,6 +94,18 @@ class Ear {
   // Mix toward mean state from other ears.
   void CrossCouple(const ArrayX& mean_state, int stage);
 
+#ifdef SQLITE3_VERIFY
+  CARCoeffs car_coeffs_;
+  CARState car_state_;
+  IHCCoeffs ihc_coeffs_;
+  IHCState ihc_state_;
+
+  // The AGC coefficients and state variables are both stored in vectors
+  // containing one element for each stage (typically 4 stages).
+  std::vector<AGCCoeffs> agc_coeffs_;
+  std::vector<AGCState> agc_state_;
+#endif
+
  private:
   // These initialize the model state variables prior to runtime.
   void InitIHCState();
@@ -110,6 +122,7 @@ class Ear {
   void AGCSmoothDoubleExponential(FPType pole_z1, FPType pole_z2,
                                   ArrayX* stage_state) const;
 
+#ifndef SQLITE3_VERIFY
   CARCoeffs car_coeffs_;
   CARState car_state_;
   IHCCoeffs ihc_coeffs_;
@@ -119,6 +132,7 @@ class Ear {
   // containing one element for each stage (typically 4 stages).
   std::vector<AGCCoeffs> agc_coeffs_;
   std::vector<AGCState> agc_state_;
+#endif
 
   int num_channels_;
 
