@@ -150,7 +150,7 @@ void CARFAC::CrossCouple() {
       if (mix_coeff > 0) {
         for (int i = 0; i < ears_.size(); i++) {
           log_sql_ear = i;
-          log_vals_in_ary(fmt::format("CrossCouple: stage {}: agc_memory(0)", stage), ears_[0]->agc_state_[stage].agc_memory);
+          log_vals_in_ary(fmt::format("CrossCouple: stage {}: agc_memory(0)", stage), ears_[i]->agc_state_[stage].agc_memory);
         }
         accumulator_.setZero(num_channels_);
         for (Ear* ear : ears_) {
@@ -167,7 +167,7 @@ void CARFAC::CrossCouple() {
     }
     for (int i = 0; i < ears_.size(); i++) {
       log_sql_ear = i;
-      log_vals_in_ary(fmt::format("CrossCouple: stage {}: agc_memory", stage), ears_[0]->agc_state_[stage].agc_memory);
+      log_vals_in_ary(fmt::format("CrossCouple: stage {}: agc_memory", stage), ears_[i]->agc_state_[stage].agc_memory);
     }
   }
 }
