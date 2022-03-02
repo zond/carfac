@@ -109,6 +109,7 @@ void CARFAC::RunSegment(const ArrayXX& sound_data, bool open_loop,
   log_start_tx();
   for (int32_t timepoint = 0; timepoint < sound_data.cols(); ++timepoint) {
     log_sql_step = timepoint;
+    log_sql_ear = 0;
     log_state(ears_);
     bar.update();
     for (int audio_channel = 0; audio_channel < num_ears_; ++audio_channel) {
