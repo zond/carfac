@@ -108,18 +108,17 @@ void CARFAC::RunSegment(const ArrayXX& sound_data, bool open_loop,
   progressbar bar(sound_data.cols());
   log_start_tx();
   for (int32_t timepoint = 0; timepoint < sound_data.cols(); ++timepoint) {
-	log_sql_step = timepoint;
-	log_sql_ear = 0;
-	log_state(ears_);
-	bar.update();
+    log_sql_step = timepoint;
+    log_state(ears_);
+    bar.update();
     for (int audio_channel = 0; audio_channel < num_ears_; ++audio_channel) {
-	  log_sql_ear = audio_channel;
-	  FPType input_sample = sound_data(audio_channel, timepoint);
+      log_sql_ear = audio_channel;
+      FPType input_sample = sound_data(audio_channel, timepoint);
 
       Ear* ear = ears_[audio_channel];
       // Apply the three stages of the model in sequence to the current sample.
       ear->CARStep(input_sample);
-	  log_vals_in_ary("RunSegment: car_out", ear->car_out());
+      log_vals_in_ary("RunSegment: car_out", ear->car_out());
       ear->IHCStep(ear->car_out());
       // The AGC work can be skipped if running open loop, since it will not
       // affect the output.  I had kept it running, in the Matlab version, as
@@ -128,7 +127,7 @@ void CARFAC::RunSegment(const ArrayXX& sound_data, bool open_loop,
         agc_memory_updated = ear->AGCStep(ear->ihc_out());
       }
     }
-	log_sql_ear = 0;
+    log_sql_ear = 0;
     output->AssignFromEars(ears_, timepoint);
     if (agc_memory_updated) {
       if (num_ears_ > 1) {
@@ -148,20 +147,27 @@ void CARFAC::CrossCouple() {
     } else {
       FPType mix_coeff = ears_[0]->agc_mix_coeff(stage);
       if (mix_coeff > 0) {
-		log_vals_in_ary(fmt::format("CrossCouple: stage {}: agc_memory(0)", stage), ears_[0]->agc_state_[stage].agc_memory);
+        for (int i = 0; i < ears_.size(); i++) {
+          log_sql_ear = i;
+          log_vals_in_ary(fmt::format("CrossCouple: stage {}: agc_memory(0)", stage), ears_[0]->agc_state_[stage].agc_memory);
+        }
         accumulator_.setZero(num_channels_);
         for (Ear* ear : ears_) {
           accumulator_ += ear->agc_memory(stage);
         }
         accumulator_ *= FPType(1.0 / num_ears_);  // Ears' mean AGC state.
-		log_vals_in_ary(fmt::format("CrossCouple: stage {}: accumulator", stage), accumulator_);
+        log_sql_ear = 0;
+        log_vals_in_ary(fmt::format("CrossCouple: stage {}: accumulator", stage), accumulator_);
         // Mix the mean into all.
         for (Ear* ear : ears_) {
           ear->CrossCouple(accumulator_, stage);
         }
       }
     }
-	log_vals_in_ary(fmt::format("CrossCouple: stage {}: agc_memory", stage), ears_[0]->agc_state_[stage].agc_memory);
+    for (int i = 0; i < ears_.size(); i++) {
+      log_sql_ear = i;
+      log_vals_in_ary(fmt::format("CrossCouple: stage {}: agc_memory", stage), ears_[0]->agc_state_[stage].agc_memory);
+    }
   }
 }
 
